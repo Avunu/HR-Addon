@@ -177,3 +177,27 @@ def get_unmarked_range(employee, from_day, to_day):
 			unmarked_days.append(date)
 
 	return unmarked_days
+
+@frappe.whitelist()
+def recalculate_total_hours(doc, method=None):
+	logs = frappe.db.get_list("Employee Checkins", fields=['log_time', 'log_type'], filters={'parent':doc.name})
+	checkins = []
+	checkouts = []
+
+	for log in logs:
+		if log["log_type"] == 'IN':
+			checkins.append(log["log_time"])
+		else:
+			checkouts.append(log["log_time"])
+
+	frappe.publish_realtime(event='msgprint', message=f"{checkins}")
+	
+	
+
+# update hours worked and break hours
+
+"""
+filters={
+	'employee': employee
+},
+fields=['time', 'log_type']"""

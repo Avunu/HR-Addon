@@ -10,9 +10,9 @@ class WeeklyWorkingHours(Document):
 	def autoname(self):
 		""""""
 		coy = frappe.db.sql("select abbr from tabCompany where name=%s", self.company)[0][0]
-		e_name = self.employee
-		#name_key = coy+'-.YYYY.-'+e_name
-		name_key = coy+'-.YYYY.-'+e_name+'-.####'
-		self.name = make_autoname(name_key)
+		if self.employee:
+			self.name = make_autoname(coy+'-.YYYY.-'+self.employee+'.####')
+		else:
+			self.name = make_autoname(coy+'-.YYYY.-.####')
 		self.title_hour= self.name
 

@@ -186,3 +186,10 @@ user_data_fields = [
 # Recommended only for DocTypes which have limited documents with untranslated names
 # For example: Role, Gender, etc.
 # translated_search_doctypes = []
+
+
+doc_events = {
+    "Workday": {
+        "on_change": "hr_addon.hr_addon.doctype.workday.workday.recalculate_total_hours",
+    }
+}
