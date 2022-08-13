@@ -190,14 +190,39 @@ def recalculate_total_hours(doc, method=None):
 		else:
 			checkouts.append(log["log_time"])
 
-	frappe.publish_realtime(event='msgprint', message=f"{checkins}")
-	
-	
+	checkinsByDay = {}
 
-# update hours worked and break hours
+	for i in checkins:
+		day = i.date()
+		if day not in checkinsByDay:
+			checkinsByDay[day] = []
+		checkinsByDay[day].append(i)
 
-"""
-filters={
-	'employee': employee
-},
-fields=['time', 'log_type']"""
+	checkoutsByDay = {}
+
+	for i in checkouts:
+		day = i.date()
+		if day not in checkoutsByDay:
+			checkoutsByDay[day] = []
+		checkoutsByDay[day].append(i)
+
+	checkins = sorted(checkins)
+	checkouts = sorted(checkouts)
+
+	checkinsByDay = [sorted(i) for i in checkinsByDay.values()]
+	checkoutsByDay = [sorted(i) for i in checkoutsByDay.values()]
+
+	total_time = 0
+	total_hours = 0
+
+	for checkin, checkout in zip(checkinsByDay, checkoutsByDay):
+		total_time += (((checkout[-1].hour - checkin[0].hour) * 3600) + ((checkout[-1].minute - checkin[0].minute) * 60)) / 3600
+		for i, j in zip(checkin, checkout):
+			total_hours += (((j.hour - i.hour) * 3600) + ((j.minute - i.minute) * 60)) / 3600
+			
+	total_break_time = total_time - total_hours
+	doc.first_checkin = f"{checkinsByDay[-1][0].date()} {checkinsByDay[-1][0].time()}"
+	doc.last_checkout = f"{checkoutsByDay[-1][-1].date()} {checkoutsByDay[-1][-1].time()}"
+		
+	doc.hours_worked = total_hours
+	doc.break_hours = total_break_time
