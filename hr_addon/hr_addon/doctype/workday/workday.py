@@ -24,50 +24,56 @@ def process_bulk_workday(data):
 	if isinstance(data, str):
 		data = json.loads(data)
 	data = frappe._dict(data)
-	company = frappe.get_value('Employee', data.employee, 'company')
-	if not data.unmarked_days:
-		frappe.throw(_("Please select a date"))
-		return
-	
-	for date in data.unmarked_days:
-		single = []
-		#single = view_actual_employee_log(data.employee, get_datetime(date))
-		single = get_actual_employee_log_bulk(data.employee, get_datetime(date))
-		c_single = single[0]["items"]		
-		doc_dict = {
-			'doctype': 'Workday',
-			'employee': data.employee,
-			'log_date': get_datetime(date),
-			'company': company,
-			'attendance':single[0]["attendance"],
-			'hours_worked':"{:.2f}".format(single[0]["ahour"]/(60*60)),
-			'break_hours': "{:.2f}".format(single[0]["bhour"]/(60*60)),
-			'total_work_seconds':single[0]["ahour"],
-			'total_break_seconds':single[0]["bhour"],
-		}
-		workday = frappe.get_doc(doc_dict).insert()
-		target_hours = single[0]["thour"]
-		if (workday.status == 'Half Day'):
-			target_hours = (single[0]["thour"])/2
-		if (workday.status == 'On Leave'):
-			target_hours = 0
-		workday.target_hours = target_hours
-		workday.total_target_seconds = target_hours*(60*60)
+	if data.process_all_employees:
+		employees = [i["name"] for i in frappe.db.get_list("Employee", fields=["name"])]
+		# frappe.throw(_(f"employees = {employees}"))
+	else:
+		employees = [data.employee]
+	for employee in employees:
+		company = frappe.get_value('Employee', employee, 'company')
+		if not data.unmarked_days:
+			frappe.throw(_("Please select a date"))
+			return
+		
+		for date in data.unmarked_days:
+			single = []
+			#single = view_actual_employee_log(data.employee, get_datetime(date))
+			single = get_actual_employee_log_bulk(data.employee, get_datetime(date))
+			c_single = single[0]["items"]		
+			doc_dict = {
+				'doctype': 'Workday',
+				'employee': data.employee,
+				'log_date': get_datetime(date),
+				'company': company,
+				'attendance':single[0]["attendance"],
+				'hours_worked':"{:.2f}".format(single[0]["ahour"]/(60*60)),
+				'break_hours': "{:.2f}".format(single[0]["bhour"]/(60*60)),
+				'total_work_seconds':single[0]["ahour"],
+				'total_break_seconds':single[0]["bhour"],
+			}
+			workday = frappe.get_doc(doc_dict).insert()
+			target_hours = single[0]["thour"]
+			if (workday.status == 'Half Day'):
+				target_hours = (single[0]["thour"])/2
+			if (workday.status == 'On Leave'):
+				target_hours = 0
+			workday.target_hours = target_hours
+			workday.total_target_seconds = target_hours*(60*60)
 
-		# lenght of single must be greater than zero
-		if((not single[0]["items"] is None) and (len(single[0]["items"]) > 0)):
-			workday.first_checkin = c_single[0].time
-			workday.last_checkout = c_single[-1].time
-			
-			for i in range(len(c_single)):
-				row = workday.append("employee_checkins", {
-					'employee_checkin': c_single[i]["name"],
-					'log_type': c_single[i]["log_type"],
-					'log_time': c_single[i]["time"],
-					'skip_auto_attendance': c_single[i]["skip_auto_attendance"],
-					'parent':workday
-				})			
-			
+			# length of single must be greater than zero
+			if((not single[0]["items"] is None) and (len(single[0]["items"]) > 0)):
+				workday.first_checkin = c_single[0].time
+				workday.last_checkout = c_single[-1].time
+				
+				for i in range(len(c_single)):
+					row = workday.append("employee_checkins", {
+						'employee_checkin': c_single[i]["name"],
+						'log_type': c_single[i]["log_type"],
+						'log_time': c_single[i]["time"],
+						'skip_auto_attendance': c_single[i]["skip_auto_attendance"],
+						'parent':workday
+					})			
+				
 		workday.save()
 			
 		#workday.submit() 
@@ -190,14 +196,51 @@ def recalculate_total_hours(doc, method=None):
 		else:
 			checkouts.append(log["log_time"])
 
-	frappe.publish_realtime(event='msgprint', message=f"{checkins}")
-	
-	
 
-# update hours worked and break hours
+	total_hours = 0
+	total_break_time = 0
+	first_checkin = "---"
+	last_checkout = "---"
 
-"""
-filters={
-	'employee': employee
-},
-fields=['time', 'log_type']"""
+	if len(checkins) > 0 and len(checkouts) > 0:
+		checkinsByDay = {}
+
+		for i in checkins:
+			day = i.date()
+			if day not in checkinsByDay:
+				checkinsByDay[day] = []
+			checkinsByDay[day].append(i)
+
+		checkoutsByDay = {}
+
+		for i in checkouts:
+			day = i.date()
+			if day not in checkoutsByDay:
+				checkoutsByDay[day] = []
+			checkoutsByDay[day].append(i)
+
+		checkins = sorted(checkins)
+		checkouts = sorted(checkouts)
+
+		checkinsByDay = [sorted(i) for i in checkinsByDay.values()]
+		checkoutsByDay = [sorted(i) for i in checkoutsByDay.values()]
+
+		total_time = 0
+		total_hours = 0
+
+		for checkin, checkout in zip(checkinsByDay, checkoutsByDay):
+			total_time += (((checkout[-1].hour - checkin[0].hour) * 3600) + ((checkout[-1].minute - checkin[0].minute) * 60)) / 3600
+			for i, j in zip(checkin, checkout):
+				total_hours += (((j.hour - i.hour) * 3600) + ((j.minute - i.minute) * 60)) / 3600
+				
+		total_break_time = total_time - total_hours
+		first_checkin = f"{checkinsByDay[-1][0].date()} {checkinsByDay[-1][0].time()}"
+		last_checkout = f"{checkoutsByDay[-1][-1].date()} {checkoutsByDay[-1][-1].time()}"
+	
+	doc.first_checkin = first_checkin
+	doc.last_checkout = last_checkout
+		
+	doc.hours_worked = total_hours
+	doc.break_hours = total_break_time
+
+	

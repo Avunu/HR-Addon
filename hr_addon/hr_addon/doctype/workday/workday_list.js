@@ -17,7 +17,17 @@ frappe.listview_settings['Workday'] = {
 		list_view.page.add_inner_button(__("Process Workdays"), function() {
 			let dialog = new frappe.ui.Dialog({
 				title: __("Process Workdays"),
-				fields: [{
+				fields: [				
+					{
+						label: __("Process All Employees"),
+						fieldtype: "Check",
+						fieldname: "process_all_employees",
+						hidden: 0,
+						onchange: function() {
+								dialog.set_df_property("employee", "hidden", this.value ? 1 : 0);
+								dialog.set_df_property("employee", "required", this.value ? 1 : 0);
+						}
+					},{
 					fieldname: 'employee',
 					label: __('For Employee'),
 					fieldtype: 'Link',
