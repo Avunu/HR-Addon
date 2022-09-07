@@ -11,7 +11,7 @@ from frappe.utils import cint, cstr, formatdate, get_datetime, getdate, nowdate,
 from frappe.utils.data import date_diff
 from datetime import date,datetime
 
-from hr_addon.hr_addon.api.utils import view_actual_employee_log,get_actual_employee_log_bulk
+from hr_addon.hr_addon.api.utils import view_actual_employee_log, get_actual_employee_log_bulk
 from erpnext.hr.utils import get_holiday_dates_for_employee, validate_active_employee
 
 class Workday(Document):
@@ -46,8 +46,8 @@ def process_bulk_workday(data):
 				'log_date': get_datetime(date),
 				'company': company,
 				'attendance':single[0]["attendance"],
-				'hours_worked':"{:.2f}".format(single[0]["ahour"]/(60*60)),
-				'break_hours': "{:.2f}".format(single[0]["bhour"]/(60*60)),
+				'hours_worked':"{:.2f}".format(single[0]["ahour"]/3600),
+				'break_hours': "{:.2f}".format(single[0]["bhour"]/3600),
 				'total_work_seconds':single[0]["ahour"],
 				'total_break_seconds':single[0]["bhour"],
 			}
